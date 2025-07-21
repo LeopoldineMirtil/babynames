@@ -1,0 +1,216 @@
+---
+title: "1880 - 2019 US Baby Names Analysis"
+author: "Leopoldine Mirtil"
+output: rmarkdown::github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Source
+
+The data used in this analysis was orignallyuploaded and made publicly available by user Jeffrey Jex on Kaggle.com, sourced from the US Social Security Administration. It shows the name, gender and count per year, [link here.](https://www.kaggle.com/datasets/jeffreyjex/us-baby-names-18802019)
+
+Since this dataset is made up of 140 separate text files, I ended up using Python to merge all the data files into one single dataframe that I then used for the analysis. I also modified the data by adding a year column to each file before combining all the files. 
+
+### Objective
+
+1. Determine the top 10 overall names by total per gender
+2. Identify the top baby names for each year per gender
+3. Identify the top 10 common baby names from 1880 to 2019 per gender
+4. Identify the top 10 common baby names per gender of the recent five years
+5. Compare the top baby names of 1880 and 2019
+
+## Step 1 - Get Data
+
+#### Load Library
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyr)
+library(tidyverse)
+library(dplyr)
+library(knitr)
+library(plotly)
+```
+
+
+#### Import Data
+
+```{r}
+df <- read.csv('baby_names1880-2019.txt', header=TRUE, sep = ",")
+```
+
+
+## Step 2 - View & Inspect Data
+
+```{r}
+str(df)
+```
+
+
+#### Check for Missing/Null Values
+
+```{r}
+sapply(df, function(x) sum(is.na(x)))
+```
+
+
+#### Check for Empty Values
+
+```{r}
+sapply(df, function(x) sum(x==""))
+```
+
+
+## Step 3 - Analyze Data
+
+#### Descriptive Analysis
+
+```{r}
+summary(df)
+```
+#### Count of Unique Names
+
+```{r}
+length(unique(df$name))
+```
+#### Count and Total Babies by Gender
+
+```{r}
+df %>%
+  group_by(gender) %>%
+  reframe(count = n(), 
+          total_babies=sum(total))
+```
+
+#### Annual Name Count and Total Babies 
+
+```{r}
+df %>%
+  group_by(year) %>%
+  reframe(name_count = n(),
+          total_babies=sum(total)) %>%
+  arrange(year)
+```
+
+#### Top Names by Total Babies 
+
+```{r}
+df %>%
+  group_by(gender) %>%
+  arrange(desc(total)) %>%
+  group_by(gender) %>%
+  slice_head(n=1)
+```
+
+#### Overall Top 10 Baby Names by Total 
+
+```{r}
+df %>%
+  group_by(gender, name) %>%
+  reframe(total_babies = sum(total)) %>%
+  arrange(desc(total_babies)) %>%
+  group_by(gender) %>%
+  slice_head(n=10)
+```
+
+
+#### Top 10 Common Baby Names per Gender
+
+```{r}
+get_mode <- function(x) {
+  u <- unique(x)
+  tab <- tabulate(match(x, u))
+  u[tab == max(tab)]
+}
+
+df %>%
+  group_by(gender) %>%
+  reframe(common_names=get_mode(name)) %>%
+  arrange(gender) %>%
+  group_by(gender) %>%
+  slice_head(n=10)
+```
+
+#### Top 10 Common Names per Gender of Recent Five Years
+
+```{r}
+df %>%
+  filter((year >= '2015') & (year <= '2019')) %>%
+  group_by(gender) %>%
+  reframe(mode_names=get_mode(name)) %>%
+  arrange(gender) %>%
+  group_by(gender) %>%
+  slice_head(n=10)
+```
+
+#### Top 10 Names of 1880 & 2019 by Total
+
+```{r}
+df %>%
+  filter( (year == '1880') | (year == '2019')) %>%
+  group_by(year, gender, name) %>%
+  reframe(total_babies = sum(total)) %>%
+  arrange(year, gender, desc(total_babies)) %>%
+  group_by(year, gender) %>%
+  slice(1:10)
+```
+
+
+## Step 4 - Visualizations
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+df %>%
+  group_by(year) %>%
+  reframe(sumTotal= sum(total)) %>%
+    plot_ly(type="scatter", mode="lines+markers", x = ~year, y = ~sumTotal, text=~year,
+            hovertemplate=paste(' <b>%{x}</b><br>', 
+                          '%{y:,.0f}<br><extra></extra>')) %>%
+      layout(title="1880 - 2019 Overall Baby Names Total",
+           yaxis = list(title = ""),
+             xaxis = list(title = ""))
+```
+
+
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+df %>%
+  group_by(gender, name) %>%
+  reframe(total_babies = sum(total)) %>%
+  arrange(desc(total_babies)) %>%
+  group_by(gender) %>%
+  mutate(idx= row_number()) %>%
+  slice_head(n=10) %>%
+    plot_ly(x = ~idx, y = ~total_babies, color=~gender, type = 'bar', text=~name,
+            hovertemplate=paste(' <b>%{text}</b><br>',
+                                '<i>Overall Rank: %{x}</i><br>',
+                          '%{y:,.0f}<br><extra></extra>')) %>%
+    layout(title="1880 - 2019 Overall Top Baby Names by Total",
+           yaxis = list(title = ""),
+           xaxis = list(title = "", showticklabels=FALSE),
+           barmode='stack')
+```
+
+
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+df %>%
+  group_by(year, gender) %>%
+  arrange(desc(total)) %>%
+  group_by(year, gender) %>%
+  slice_head(n=1) %>%
+  ungroup() %>%
+    plot_ly(type="scatter", mode="lines+markers", y = ~total, x = ~year, color = ~gender, text= ~name,
+            hovertemplate=paste(' <b>%{x}</b><br>', 
+                                '%{text}<br>', 
+                          '%{y:,.0f}<br><extra></extra>')) %>%
+  layout(title="1880 - 2019 Top Baby Names by Gender",
+         yaxis = list(title = ""),
+         xaxis = list(title = ""))
+```
+
+
+
+
